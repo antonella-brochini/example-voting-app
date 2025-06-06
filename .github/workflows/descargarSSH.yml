@@ -1,0 +1,44 @@
+name: Descargar artefacto de Infra prod
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download-artifact:
+    runs-on: ubuntu-latest
+    env:
+      OWNER: antonella-brochini
+      REPO:  voting-app-infra
+      ARTIFACT_NAME: terraform-outputs-prod
+
+    steps:
+    - name: Obtener lista de artefactos
+      id: artifacts
+      run: |
+        response=$(curl -s -H "Authorization: token ${{ secrets.INFRA_REPO_PAT }}" \
+          https://api.github.com/repos/${{ env.OWNER }}/${{ env.REPO }}/actions/artifacts)
+
+        echo "$response" | jq '.artifacts[] | {name: .name, id: .id}' > all_artifacts.json
+
+        artifact_id=$(jq -r "select(.name==\"${{ env.ARTIFACT_NAME }}\") | .id" all_artifacts.json)
+
+        if [[ -z "$artifact_id" ]]; then
+          echo "❌ No se encontró el artefacto"
+          exit 1
+        fi
+
+        echo "artifact_id=$artifact_id" >> $GITHUB_OUTPUT
+
+    - name: Descargar artefacto
+      run: |
+        curl -L -H "Authorization: token ${{ secrets.INFRA_REPO_PAT }}" \
+          -H "Accept: application/vnd.github+json" \
+          https://api.github.com/repos/${{ env.OWNER }}/${{ env.REPO }}/actions/artifacts/${{ steps.artifacts.outputs.artifact_id }}/zip \
+          -o artifact.zip
+
+    - name: Extraer artefacto
+      run: unzip artifact.zip -d terraform-outputs
+
+    - name: Mostrar contenido
+      run: ls -l terraform-outputs
+
