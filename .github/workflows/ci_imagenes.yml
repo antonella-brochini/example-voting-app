@@ -1,0 +1,85 @@
+name: CI/CD Voting App
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_ACCOUNT_ID: ${{ secrets.ECR_ACCOUNT_ID }}
+  ECR_REGISTRY: ${{ secrets.ECR_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+  IMAGE_TAG: latest
+
+jobs:
+  build-test-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build vote image
+        run: docker build -t vote ./vote
+
+      - name: Build result image
+        run: docker build -t result ./result
+
+      - name: Build worker image
+        run: docker build -t worker ./worker
+
+      - name: Build sut test image
+        run: docker build -t sut ./result/tests
+
+      - name: Start all services for testing
+        run: |
+          docker-compose -f ./result/docker-compose.test.yml up -d
+
+      - name: Wait for services to start
+        run: sleep 30
+
+      - name: Run sut tests container and wait for completion
+        run: |
+          docker wait $(docker ps -q -f ancestor=sut)
+
+      - name: Capture sut exit code
+        id: sut-status
+        run: echo "exitcode=$(docker inspect $(docker ps -q -f ancestor=sut) --format='{{.State.ExitCode}}')" >> $GITHUB_OUTPUT
+
+      - name: Stop and remove all test containers
+        if: always()
+        run: docker-compose -f ./result/docker-compose.test.yml down -v
+
+      - name: Fail if sut tests failed
+        if: steps.sut-status.outputs.exitcode != '0'
+        run: |
+          echo "Tests failed, failing job"
+          exit 1
+
+      - name: Tag vote image
+        run: docker tag vote $ECR_REGISTRY/voting-app/vote:$IMAGE_TAG
+
+      - name: Tag result image
+        run: docker tag result $ECR_REGISTRY/voting-app/result:$IMAGE_TAG
+
+      - name: Tag worker image
+        run: docker tag worker $ECR_REGISTRY/voting-app/worker:$IMAGE_TAG
+
+      - name: Push vote image to ECR
+        run: docker push $ECR_REGISTRY/voting-app/vote:$IMAGE_TAG
+
+      - name: Push result image to ECR
+        run: docker push $ECR_REGISTRY/voting-app/result:$IMAGE_TAG
+
+      - name: Push worker image to ECR
+        run: docker push $ECR_REGISTRY/voting-app/worker:$IMAGE_TAG
+
+
