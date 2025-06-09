@@ -1,0 +1,47 @@
+name: CI-CD pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    env:
+      ECR_REGISTRY: ${{ secrets.ECR_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+      IMAGE_TAG: ${{ github.sha }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Configurar credenciales temporales de AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build Docker images
+        run: docker-compose build vote result worker
+
+      - name: Tag Docker images
+        run: |
+          docker tag vote:latest $ECR_REGISTRY/vote:$IMAGE_TAG
+          docker tag result:latest $ECR_REGISTRY/result:$IMAGE_TAG
+          docker tag worker:latest $ECR_REGISTRY/worker:$IMAGE_TAG
+
+      - name: Push Docker images to ECR
+        run: |
+          docker push $ECR_REGISTRY/vote:$IMAGE_TAG
+          docker push $ECR_REGISTRY/result:$IMAGE_TAG
+          docker push $ECR_REGISTRY/worker:$IMAGE_TAG
+
