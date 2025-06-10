@@ -12,19 +12,38 @@ on:
 
 jobs:
   sonarcloud:
-    name: SonarCloud Analysis
+    name: Analyze All Services
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up JDK for SonarCloud
+      # Setup Java (requerido por SonarScanner)
+      - name: Setup Java
         uses: actions/setup-java@v3
         with:
-          java-version: '17'
           distribution: 'temurin'
+          java-version: '17'
 
+      # Setup Python para vote/
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      # Setup Node.js para result/
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # Setup .NET para worker/
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6.0.x'
+
+      # Install SonarScanner
       - name: SonarCloud Scan
         uses: sonarsource/sonarcloud-github-action@v2
         env:
