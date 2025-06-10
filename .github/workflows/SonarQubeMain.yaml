@@ -1,4 +1,4 @@
-name: CI with SonarCloud and Docker Build
+name: CI with SonarCloud and Docker Build MAIN
 
 on:
   push:
