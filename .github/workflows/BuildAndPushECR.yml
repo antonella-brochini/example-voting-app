@@ -1,0 +1,59 @@
+name: Build and Push all images to ECR
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 804429548551.dkr.ecr.us-east-1.amazonaws.com
+  IMAGE_TAG: latest
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Configurar credenciales temporales de AWS
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+    # Función para build, tag y push repetida para cada servicio:
+    - name: Build, tag and push voting-worker image
+      run: |
+        docker build -t voting-worker:latest ./worker
+        docker tag voting-worker:latest $ECR_REGISTRY/voting-worker:$IMAGE_TAG
+        docker push $ECR_REGISTRY/voting-worker:$IMAGE_TAG
+
+
+    - name: Build, tag and push voting-vote image
+      run: |
+        docker build -t vote:latest ./vote
+        docker tag vote:latest $ECR_REGISTRY/voting-vote:$IMAGE_TAG
+        docker push $ECR_REGISTRY/voting-vote:$IMAGE_TAG
+
+    - name: Build, tag and push voting-db image
+      run: |
+        docker build -t voting-db:latest ./db
+        docker tag voting-db:latest $ECR_REGISTRY/voting-db:$IMAGE_TAG
+        docker push $ECR_REGISTRY/voting-db:$IMAGE_TAG
+
+    - name: Build, tag and push voting-redis image
+      run: |
+        docker build -t voting-redis:latest ./redis
+        docker tag voting-redis:latest $ECR_REGISTRY/voting-redis:$IMAGE_TAG
+        docker push $ECR_REGISTRY/voting-redis:$IMAGE_TAG
+
+    - name: Build, tag and push voting-result image
+      run: |
+        docker build -t voting-result:latest ./result
+        docker tag voting-result:latest $ECR_REGISTRY/voting-result:$IMAGE_TAG
+        docker push $ECR_REGISTRY/voting-result:$IMAGE_TAG
