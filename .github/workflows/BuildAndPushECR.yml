@@ -57,11 +57,6 @@ jobs:
         registry=$(echo "${{ steps.read_urls.outputs.worker }}" | cut -d'/' -f1)
         aws ecr get-login-password | docker login --username AWS --password-stdin $registry
 
-    - name: Build, tag and push voting-worker image
-      run: |
-        docker build -t voting-worker ./worker
-        docker tag voting-worker:latest ${{ steps.read_urls.outputs.worker }}
-        docker push ${{ steps.read_urls.outputs.worker }}
 
 
     - name: Build, tag and push voting-worker image
