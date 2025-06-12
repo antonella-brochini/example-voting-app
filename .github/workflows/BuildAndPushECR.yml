@@ -5,11 +5,6 @@ on:
     branches:
       - main
 
-env:
-  AWS_REGION: us-east-1
-  ECR_REGISTRY: 804429548551.dkr.ecr.us-east-1.amazonaws.com
-  IMAGE_TAG: latest
-
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
@@ -26,34 +21,58 @@ jobs:
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region: us-east-1
 
-    # Función para build, tag y push repetida para cada servicio:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Get latest successful run_id from Infra repo
+      run: |
+        run_id=$(curl -s -H "Authorization: token ${{ secrets.INFRA_REPO_PAT }}" \
+        "https://api.github.com/repos/antonella-brochini/voting-app-infra/actions/workflows/deployEKS.yml/runs?status=success&branch=main&per_page=1" \
+        | jq -r '.workflow_runs[0].id')
+         echo "RUN_ID=$run_id" >> $GITHUB_ENV
+
+
+      
+    - name: Download Artifact from Infra Repo
+      uses: actions/download-artifact@v4
+      with:
+        name: ecr-urls
+        path: ./ecr-urls
+        github-token: ${{ secrets.INFRA_REPO_PAT }}
+        repository: antonella-brochini/voting-app-infra
+        run-id: ${{ env.RUN_ID }}
+
+
+    - name: Read ECR URLs
+      id: read_urls
+      run: |
+          urls=($(cat ./ecr-urls/ecr_urls.txt))
+          echo "worker=${urls[0]}" >> $GITHUB_OUTPUT
+          echo "vote=${urls[1]}" >> $GITHUB_OUTPUT
+          echo "result=${urls[2]}" >> $GITHUB_OUTPUT
+
+
+    - name: Login to ECR
+      run: |
+        registry=$(echo "${{ steps.read_urls.outputs.worker }}" | cut -d'/' -f1)
+        aws ecr get-login-password | docker login --username AWS --password-stdin $registry
+
     - name: Build, tag and push voting-worker image
       run: |
-        docker build -t voting-worker:latest ./worker
-        docker tag voting-worker:latest $ECR_REGISTRY/voting-worker:$IMAGE_TAG
-        docker push $ECR_REGISTRY/voting-worker:$IMAGE_TAG
+        docker build -t voting-worker ./worker
+        docker tag voting-worker:latest ${{ steps.read_urls.outputs.worker }}
+        docker push ${{ steps.read_urls.outputs.worker }}
 
 
     - name: Build, tag and push voting-vote image
       run: |
-        docker build -t vote:latest ./vote
-        docker tag vote:latest $ECR_REGISTRY/voting-vote:$IMAGE_TAG
-        docker push $ECR_REGISTRY/voting-vote:$IMAGE_TAG
-
-    - name: Build, tag and push voting-db image
-      run: |
-        docker build -t voting-db:latest ./db
-        docker tag voting-db:latest $ECR_REGISTRY/voting-db:$IMAGE_TAG
-        docker push $ECR_REGISTRY/voting-db:$IMAGE_TAG
-
-    - name: Build, tag and push voting-redis image
-      run: |
-        docker build -t voting-redis:latest ./redis
-        docker tag voting-redis:latest $ECR_REGISTRY/voting-redis:$IMAGE_TAG
-        docker push $ECR_REGISTRY/voting-redis:$IMAGE_TAG
+         docker build -t voting-vote ./vote
+         docker tag voting-vote:latest ${{ steps.read_urls.outputs.vote }}
+         docker push ${{ steps.read_urls.outputs.vote }}
+        
 
     - name: Build, tag and push voting-result image
       run: |
-        docker build -t voting-result:latest ./result
-        docker tag voting-result:latest $ECR_REGISTRY/voting-result:$IMAGE_TAG
-        docker push $ECR_REGISTRY/voting-result:$IMAGE_TAG
+        docker build -t voting-result ./result
+        docker tag voting-result:latest ${{ steps.read_urls.outputs.result }}
+        docker push ${{ steps.read_urls.outputs.result }}
