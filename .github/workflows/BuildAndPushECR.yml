@@ -64,13 +64,22 @@ jobs:
         docker push ${{ steps.read_urls.outputs.worker }}
 
 
-    - name: Build, tag and push voting-vote image
-      run: |
-         docker build -t voting-vote ./vote
-         docker tag voting-vote:latest ${{ steps.read_urls.outputs.vote }}
-         docker push ${{ steps.read_urls.outputs.vote }}
-        
+    - name: Build, tag and push voting-worker image
+      env:
+        ENVIRONMENT: prod
+        BUILD_DATE: ${{ github.run_attempt == 1 && github.run_started_at && (github.run_started_at | fromJson | toDate | format('yyyyMMdd')) || '' }}
+        BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          TAG="${ENVIRONMENT}-${BUILD_DATE}-${BUILD_NUMBER}"
+          echo "Tag de la imagen: $TAG"
+          # Construir la imagen localmente
+          docker build -t voting-worker ./worker
+          # Etiquetar con la URL completa del repositorio + tag único
+          docker tag voting-worker:latest ${{ steps.read_urls.outputs.worker }}:$TAG
+          # Push de la imagen con tag único
+          docker push ${{ steps.read_urls.outputs.worker }}:$TAG
 
+        
     - name: Build, tag and push voting-result image
       run: |
         docker build -t voting-result ./result
