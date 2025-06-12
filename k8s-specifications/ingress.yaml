@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: public-ingress-prod
+  namespace: prod 
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+      http:
+        paths:
+          - path: /result
+            pathType: Prefix
+            backend:
+              service:
+                name: result-service
+                port:
+                  number: 80
+          - path: /vote
+            pathType: Prefix
+            backend:
+              service:
+                name: vote-service
+                port:
+                  number: 80
