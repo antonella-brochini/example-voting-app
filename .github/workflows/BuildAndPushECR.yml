@@ -76,3 +76,16 @@ jobs:
         docker build -t voting-result ./result
         docker tag voting-result:latest ${{ steps.read_urls.outputs.result }}:$TAG
         docker push ${{ steps.read_urls.outputs.result }}:$TAG
+
+    - name: Build, tag and push voting-vote image
+      env:
+        ENVIRONMENT: prod
+        BUILD_NUMBER: ${{ github.run_number }}
+      run: |
+        BUILD_DATE=$(date +%Y%m%d)
+        TAG="${ENVIRONMENT}-${BUILD_DATE}-${BUILD_NUMBER}"
+        echo "Tag de la imagen: $TAG"
+        docker build -t voting-vote ./vote
+        docker tag voting-vote:latest ${{ steps.read_urls.outputs.vote }}:$TAG
+        docker push  ${{ steps.read_urls.outputs.vote }}:$TAG
+
