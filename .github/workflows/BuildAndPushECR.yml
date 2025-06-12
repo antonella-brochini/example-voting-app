@@ -110,8 +110,14 @@ jobs:
           sed -i -E "s|image:.*|image: 804429548551.dkr.ecr.us-east-1.amazonaws.com/voting-worker:${{ env.IMAGE_TAG }}|" k8s-specifications/worker-deployment.yaml
           sed -i -E "s|image:.*|image: 804429548551.dkr.ecr.us-east-1.amazonaws.com/voting-vote:${{ env.IMAGE_TAG }}|" k8s-specifications/vote-deployment.yaml
           sed -i -E "s|image:.*|image: 804429548551.dkr.ecr.us-east-1.amazonaws.com/voting-result:${{ env.IMAGE_TAG }}|" k8s-specifications/result-deployment.yaml
-          sed -i 's/type: NodePort/type: LoadBalancer/' k8s-specifications/vote-service.yaml
+          sed -i 's/type: NodePort/type: ClusterIP/' k8s-specifications/vote-service.yaml
           sed -i '/nodePort/d' k8s-specifications/vote-service.yaml
+          sed -i 's/port: 8081/port: 80/' k8s-specifications/vote-service.yaml
+          
+          sed -i 's/type: NodePort/type: ClusterIP/' k8s-specifications/result-service.yaml
+          sed -i 's/port: 8081/port: 80/' k8s-specifications/result-service.yaml
+          sed -i '/nodePort/d' k8s-specifications/result-service.yaml
+         
           
        
       - name: Deploy to prod namespace
