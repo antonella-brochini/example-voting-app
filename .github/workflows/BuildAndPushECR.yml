@@ -8,7 +8,9 @@ on:
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
-
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v3
@@ -53,39 +55,62 @@ jobs:
         registry=$(echo "${{ steps.read_urls.outputs.worker }}" | cut -d'/' -f1)
         aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $registry
 
-    - name: Build, tag and push voting-worker image
-      env:
-        ENVIRONMENT: prod
-        BUILD_NUMBER: ${{ github.run_number }}
+    - name: Determine image tag
+      id: set_tag
       run: |
-        BUILD_DATE=$(date +%Y%m%d)
-        TAG="${ENVIRONMENT}-${BUILD_DATE}-${BUILD_NUMBER}"
-        echo "Tag de la imagen: $TAG"
+          ENVIRONMENT=prod
+          BUILD_DATE=$(date +%Y%m%d)
+          BUILD_NUMBER=${{ github.run_number }}
+          TAG="${ENVIRONMENT}-${BUILD_DATE}-${BUILD_NUMBER}"
+          echo "image_tag=$TAG" >> $GITHUB_OUTPUT
+
+
+    - name: Build, tag and push voting-worker image
+      run: |
         docker build -t voting-worker ./worker
-        docker tag voting-worker:latest ${{ steps.read_urls.outputs.worker }}:$TAG
-        docker push ${{ steps.read_urls.outputs.worker }}:$TAG
+        docker tag voting-worker:latest ${{ steps.read_urls.outputs.worker }}:${{ steps.set_tag.outputs.image_tag }}
+        docker push ${{ steps.read_urls.outputs.worker }}:${{ steps.set_tag.outputs.image_tag }}
 
     - name: Build, tag and push voting-result image
-      env:
-        ENVIRONMENT: prod
-        BUILD_NUMBER: ${{ github.run_number }}
       run: |
-        BUILD_DATE=$(date +%Y%m%d)
-        TAG="${ENVIRONMENT}-${BUILD_DATE}-${BUILD_NUMBER}"
-        echo "Tag de la imagen: $TAG"
         docker build -t voting-result ./result
-        docker tag voting-result:latest ${{ steps.read_urls.outputs.result }}:$TAG
-        docker push ${{ steps.read_urls.outputs.result }}:$TAG
+        docker tag voting-result:latest ${{ steps.read_urls.outputs.result }}:${{ steps.set_tag.outputs.image_tag }}
+        docker push ${{ steps.read_urls.outputs.result }}:${{ steps.set_tag.outputs.image_tag }}
 
     - name: Build, tag and push voting-vote image
-      env:
-        ENVIRONMENT: prod
-        BUILD_NUMBER: ${{ github.run_number }}
       run: |
-        BUILD_DATE=$(date +%Y%m%d)
-        TAG="${ENVIRONMENT}-${BUILD_DATE}-${BUILD_NUMBER}"
-        echo "Tag de la imagen: $TAG"
         docker build -t voting-vote ./vote
-        docker tag voting-vote:latest ${{ steps.read_urls.outputs.vote }}:$TAG
-        docker push  ${{ steps.read_urls.outputs.vote }}:$TAG
+        docker tag voting-vote:latest ${{ steps.read_urls.outputs.vote }}:${{ steps.set_tag.outputs.image_tag }}
+        docker push  ${{ steps.read_urls.outputs.vote }}:${{ steps.set_tag.outputs.image_tag }}
+
+  deploy:
+    needs: build_and_push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
+
+     
+      - name: Update images with new tag
+        env:
+          IMAGE_TAG: ${{ needs.build_and_push.outputs.image_tag }}
+        run: |
+          sed -i -E "s|image:.*|image: 804429548551.dkr.ecr.us-east-1.amazonaws.com/voting-worker:${{ env.IMAGE_TAG }}|" k8s-specifications/worker-deployment.yaml
+          sed -i -E "s|image:.*|image: 804429548551.dkr.ecr.us-east-1.amazonaws.com/voting-vote:${{ env.IMAGE_TAG }}|" k8s-specifications/vote-deployment.yaml
+          sed -i -E "s|image:.*|image: 804429548551.dkr.ecr.us-east-1.amazonaws.com/voting-result:${{ env.IMAGE_TAG }}|" k8s-specifications/result-deployment.yaml
+          kubectl apply -f k8s/
+     
+        
 
