@@ -118,6 +118,7 @@ jobs:
           sed -i 's/port: 8081/port: 80/' k8s-specifications/result-service.yaml
           sed -i '/nodePort/d' k8s-specifications/result-service.yaml
          
+
           
        
       - name: Deploy to prod namespace
