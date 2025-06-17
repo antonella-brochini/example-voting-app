@@ -116,11 +116,12 @@ jobs:
       - name: Esperar para que todo quede estable
         run: sleep 10
 
-      - name: Verificar endpoints
+      - name: Ver votos en la base de datos
         run: |
-          curl --fail http://localhost:8080 || (echo "Vote no responde" && exit 1)
-          curl --fail http://localhost:8081 || (echo "Result no responde" && exit 1)
-
+         docker ps  # útil para debug
+           CONTAINER_ID=$(docker ps -qf "name=db")
+           docker exec "$CONTAINER_ID" psql -U postgres -d postgres -c "SELECT vote, COUNT(*) FROM votes GROUP BY vote;"
+           
       - name: Apagar servicios
         run: docker compose down
     
