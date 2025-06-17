@@ -116,9 +116,9 @@ jobs:
       - name: Esperar para que todo quede estable
         run: sleep 10
 
-     - name: Ver votos en la base de datos
-       run: |
-         docker exec example-voting-app-db-1 psql -U postgres -d postgres -c "SELECT vote, COUNT(*) FROM votes GROUP BY vote;"
+      - name: Ver votos en la base de datos
+        run: |
+          docker exec example-voting-app-db-1 psql -U postgres -d postgres -c "SELECT vote, COUNT(*) FROM votes GROUP BY vote;"
 
       - name: Apagar servicios
         run: docker compose down
