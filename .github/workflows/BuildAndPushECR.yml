@@ -146,11 +146,9 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
 
-      - name: Configurar kubectl para EKS
-        uses: aws-actions/eks-kubectl@v1
-        with:
-          cluster-name: voting-cluster
-          region: us-east-1
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
 
 
       - name: Obtener hostname del Load Balancer
