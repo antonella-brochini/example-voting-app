@@ -6,6 +6,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
+    - host: prod.antonellabrochini.com
     - http:
         paths:
           - path: /
