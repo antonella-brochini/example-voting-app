@@ -131,14 +131,16 @@ jobs:
           sed -i -E "s|image:.*|image: ${{ env.WORKER }}:${{ env.IMAGE_TAG }}|" k8s-specifications/worker-deployment.yaml
           sed -i -E "s|image:.*|image: ${{ env.VOTE }}:${{ env.IMAGE_TAG }}|" k8s-specifications/vote-deployment.yaml
           sed -i -E "s|image:.*|image: ${{ env.RESULT }}:${{ env.IMAGE_TAG }}|" k8s-specifications/result-deployment.yaml
-          sed -i "s/^\(\s*name:\).*/\1 public-ingress-${NAMESPACE}/" k8s-specifications/ingress.yaml
-          sed -i "s/^\(\s*namespace:\).*/\1 ${NAMESPACE}/" k8s-specifications/ingress.yaml
-          sed -i "s/^\(\s*host:\).*/\1 ${NAMESPACE}.antonellabrochini.com/" k8s-specifications/ingress.yaml
+          sed -i "s/^\(\s*name:\).*/\1 public-ingress-${{ env.NAMESPACE }}/" k8s-specifications/ingress.yaml
+          sed -i "s/^\(\s*namespace:\).*/\1 ${{ env.NAMESPACE }}/" k8s-specifications/ingress.yaml
+          sed -i "s/^\(\s*host:\).*/\1 ${{ env.NAMESPACE }}.antonellabrochini.com/" k8s-specifications/ingress.yaml
 
           
       - name: Deploy to namespace
+        env:
+           NAMESPACE: ${{ needs.set_namespace.outputs.namespace }}
         run: |
-          kubectl apply -f k8s-specifications/ --namespace=${{ needs.set_namespace.outputs.namespace }}
+          kubectl apply -f k8s-specifications/ --namespace=${{ env.NAMESPACE }}
 
   update-dns:
     runs-on: ubuntu-latest
@@ -156,27 +158,30 @@ jobs:
         run: |
           aws eks update-kubeconfig --region us-east-1 --name voting-cluster
 
-
       - name: Obtener hostname del Load Balancer
         id: get_elb
+        env:
+          NAMESPACE: ${{ needs.set_namespace.outputs.namespace }}
         run: |
-          NAMESPACE=${{ needs.set_namespace.outputs.namespace }}
-          INGRESS_NAME="public-ingress-${{ needs.set_namespace.outputs.namespace }}"  
+          INGRESS_NAME="public-ingress-${NAMESPACE}"  
           ELB_HOSTNAME=$(kubectl get ingress $INGRESS_NAME -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-          echo "elb_hostname=$ELB_HOSTNAME" >> $GITHUB_OUTPUT
+          echo "elb_hostname=$ELB_HOSTNAME"
+          echo "elb_hostname=$ELB_HOSTNAME" >> "$GITHUB_OUTPUT"
 
       - name: Obtener Hosted Zone ID
         id: get_zone
         run: |
-            HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name antonellabrochini.com --query "HostedZones[0].Id" --output text)
-            HOSTED_ZONE_ID=${HOSTED_ZONE_ID##*/}
-            echo "hosted_zone_id=$HOSTED_ZONE_ID" >> $GITHUB_OUTPUT
+          HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name antonellabrochini.com --query "HostedZones[0].Id" --output text)
+          HOSTED_ZONE_ID=${HOSTED_ZONE_ID##*/}
+          echo "hosted_zone_id=$HOSTED_ZONE_ID"
+          echo "hosted_zone_id=$HOSTED_ZONE_ID" >> "$GITHUB_OUTPUT"
 
       - name: Actualizar DNS
         run: |
-          HOSTED_ZONE_ID=${{ steps.get_zone.outputs.hosted_zone_id }}
+          HOSTED_ZONE_ID="${{ steps.get_zone.outputs.hosted_zone_id }}"
           DNS_NAME="${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com." 
           ELB_HOSTNAME="${{ steps.get_elb.outputs.elb_hostname }}"
+          echo "Actualizando DNS: $DNS_NAME -> $ELB_HOSTNAME (Zone: $HOSTED_ZONE_ID)"
 
           # Crear archivo JSON con cambio de registro DNS (tipo CNAME)
           cat > change-batch.json <<EOF
@@ -189,12 +194,10 @@ jobs:
                 "Type": "CNAME",
                 "TTL": 300,
                 "ResourceRecords": [{"Value": "$ELB_HOSTNAME"}]
-              }
+               }
             }]
           }
           EOF
-
-          aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID --change-batch file://change-batch.json
-
+          aws route53 change-resource-record-sets --hosted-zone-id "$HOSTED_ZONE_ID" --change-batch file://change-batch.json
 
           
