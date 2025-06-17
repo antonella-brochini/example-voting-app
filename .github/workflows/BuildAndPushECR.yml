@@ -130,13 +130,17 @@ jobs:
           sed -i -E "s|image:.*|image: ${{ env.WORKER }}:${{ env.IMAGE_TAG }}|" k8s-specifications/worker-deployment.yaml
           sed -i -E "s|image:.*|image: ${{ env.VOTE }}:${{ env.IMAGE_TAG }}|" k8s-specifications/vote-deployment.yaml
           sed -i -E "s|image:.*|image: ${{ env.RESULT }}:${{ env.IMAGE_TAG }}|" k8s-specifications/result-deployment.yaml
-
+          sed -i "s/name: public-ingress-.*/${{ needs.set_namespace.outputs.namespace }}/" k8s-specifications/ingress.yaml
+          sed -i "s/namespace: .*/${{ needs.set_namespace.outputs.namespace }}/" k8s-specifications/ingress.yaml
+          sed -i "s/host: .*/${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com" k8s-specifications/ingress.yaml
+          
       - name: Deploy to namespace
         run: |
           kubectl apply -f k8s-specifications/ --namespace=${{ needs.set_namespace.outputs.namespace }}
 
   update-dns:
     runs-on: ubuntu-latest
+    needs: [build_and_push, set_namespace , deploy]
     steps:
       - name: Configurar AWS CLI
         uses: aws-actions/configure-aws-credentials@v2
@@ -154,8 +158,8 @@ jobs:
       - name: Obtener hostname del Load Balancer
         id: get_elb
         run: |
-          NAMESPACE="prod" 
-          INGRESS_NAME="public-ingress-prod"  
+          NAMESPACE=${{ needs.set_namespace.outputs.namespace }}
+          INGRESS_NAME="public-ingress-${{ needs.set_namespace.outputs.namespace }}"  
           ELB_HOSTNAME=$(kubectl get ingress $INGRESS_NAME -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
           echo "elb_hostname=$ELB_HOSTNAME" >> $GITHUB_OUTPUT
 
@@ -169,7 +173,7 @@ jobs:
       - name: Actualizar DNS
         run: |
           HOSTED_ZONE_ID=${{ steps.get_zone.outputs.hosted_zone_id }}
-          DNS_NAME="prod.antonellabrochini.com." 
+          DNS_NAME="${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com." 
           ELB_HOSTNAME="${{ steps.get_elb.outputs.elb_hostname }}"
 
           # Crear archivo JSON con cambio de registro DNS (tipo CNAME)
