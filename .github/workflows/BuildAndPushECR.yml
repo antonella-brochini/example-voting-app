@@ -132,7 +132,7 @@ jobs:
           sed -i -E "s|image:.*|image: ${{ env.RESULT }}:${{ env.IMAGE_TAG }}|" k8s-specifications/result-deployment.yaml
           sed -i "s/name: public-ingress-.*/${{ needs.set_namespace.outputs.namespace }}/" k8s-specifications/ingress.yaml
           sed -i "s/namespace: .*/${{ needs.set_namespace.outputs.namespace }}/" k8s-specifications/ingress.yaml
-          sed -i "s/host: .*/${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com" k8s-specifications/ingress.yaml
+          sed -i "s/host: .*/${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com/" k8s-specifications/ingress.yaml
           
       - name: Deploy to namespace
         run: |
