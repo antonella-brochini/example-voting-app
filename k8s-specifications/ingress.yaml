@@ -7,7 +7,7 @@ spec:
   ingressClassName: nginx
   rules:
     - host: prod.antonellabrochini.com
-    - http:
+      http:
         paths:
           - path: /
             pathType: Prefix
