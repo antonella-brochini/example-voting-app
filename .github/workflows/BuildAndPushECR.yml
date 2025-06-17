@@ -1,0 +1,200 @@
+name: Build and Push all images to ECR
+
+on:
+  push:
+     branches: [main, test, developer]
+     
+
+jobs:
+
+  set_namespace:
+    runs-on: ubuntu-latest
+    outputs:
+      namespace: ${{ steps.setenv.outputs.namespace }}
+    steps:
+      - name: Set environment namespace
+        id: setenv
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "namespace=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "test" ]]; then
+            echo "namespace=test" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "developer" ]]; then
+            echo "namespace=dev" >> $GITHUB_OUTPUT
+          fi
+
+ 
+  build_and_push:
+    runs-on: ubuntu-latest
+    needs: set_namespace
+    outputs:
+      image_tag: ${{ steps.set_tag.outputs.image_tag }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configurar credenciales temporales de AWS
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get latest successful run_id from Infra repo
+        run: |
+          run_id=$(curl -s -H "Authorization: token ${{ secrets.INFRA_REPO_PAT }}" \
+            "https://api.github.com/repos/antonella-brochini/voting-app-infra/actions/workflows/deployEKS.yml/runs?status=success&branch=main&per_page=1" \
+            | jq -r '.workflow_runs[0].id')
+          echo "RUN_ID=$run_id" >> $GITHUB_ENV
+
+      - name: Download Artifact from Infra Repo
+        uses: actions/download-artifact@v4
+        with:
+          name: ecr-urls
+          path: ./ecr-urls
+          github-token: ${{ secrets.INFRA_REPO_PAT }}
+          repository: antonella-brochini/voting-app-infra
+          run-id: ${{ env.RUN_ID }}
+
+      - name: Read ECR URLs
+        id: read_urls
+        run: |
+          urls=($(cat ./ecr-urls/ecr_urls.txt))
+          echo "worker=${urls[0]}" >> $GITHUB_OUTPUT
+          echo "vote=${urls[1]}" >> $GITHUB_OUTPUT
+          echo "result=${urls[2]}" >> $GITHUB_OUTPUT
+
+      - name: Login to ECR
+        run: |
+          registry=$(echo "${{ steps.read_urls.outputs.worker }}" | cut -d'/' -f1)
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $registry
+
+      - name: Determine image tag
+        id: set_tag
+        run: |
+          ENVIRONMENT=${{ needs.set_namespace.outputs.namespace }}
+          BUILD_DATE=$(date +%Y%m%d)
+          BUILD_NUMBER=${{ github.run_number }}
+          TAG="${ENVIRONMENT}-${BUILD_DATE}-${BUILD_NUMBER}"
+          echo "image_tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Build, tag and push voting-worker image
+        run: |
+          docker build -t voting-worker ./worker
+          docker tag voting-worker:latest ${{ steps.read_urls.outputs.worker }}:${{ steps.set_tag.outputs.image_tag }}
+          docker push ${{ steps.read_urls.outputs.worker }}:${{ steps.set_tag.outputs.image_tag }}
+
+      - name: Build, tag and push voting-result image
+        run: |
+          docker build -t voting-result ./result
+          docker tag voting-result:latest ${{ steps.read_urls.outputs.result }}:${{ steps.set_tag.outputs.image_tag }}
+          docker push ${{ steps.read_urls.outputs.result }}:${{ steps.set_tag.outputs.image_tag }}
+
+      - name: Build, tag and push voting-vote image
+        run: |
+          docker build -t voting-vote ./vote
+          docker tag voting-vote:latest ${{ steps.read_urls.outputs.vote }}:${{ steps.set_tag.outputs.image_tag }}
+          docker push  ${{ steps.read_urls.outputs.vote }}:${{ steps.set_tag.outputs.image_tag }}
+
+  deploy:
+    needs: [build_and_push, set_namespace ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
+
+      - name: Update images with new tag
+        env:
+          IMAGE_TAG: ${{ needs.build_and_push.outputs.image_tag }}
+          WORKER: ${{ needs.build_and_push.outputs.worker }}
+          VOTE: ${{ needs.build_and_push.outputs.vote }}
+          RESULT: ${{ needs.build_and_push.outputs.result }}
+          NAMESPACE: ${{ needs.set_namespace.outputs.namespace }}
+        run: |
+          sed -i -E "s|image:.*|image: ${{ env.WORKER }}:${{ env.IMAGE_TAG }}|" k8s-specifications/worker-deployment.yaml
+          sed -i -E "s|image:.*|image: ${{ env.VOTE }}:${{ env.IMAGE_TAG }}|" k8s-specifications/vote-deployment.yaml
+          sed -i -E "s|image:.*|image: ${{ env.RESULT }}:${{ env.IMAGE_TAG }}|" k8s-specifications/result-deployment.yaml
+          sed -i "s/^\(\s*name:\).*/\1 public-ingress-${NAMESPACE}/" k8s-specifications/ingress.yaml
+          sed -i "s/^\(\s*namespace:\).*/\1 ${NAMESPACE}/" k8s-specifications/ingress.yaml
+          sed -i "s/^\(\s*host:\).*/\1 ${NAMESPACE}.antonellabrochini.com/" k8s-specifications/ingress.yaml
+
+          
+      - name: Deploy to namespace
+        run: |
+          kubectl apply -f k8s-specifications/ --namespace=${{ needs.set_namespace.outputs.namespace }}
+
+  update-dns:
+    runs-on: ubuntu-latest
+    needs: [build_and_push, set_namespace , deploy]
+    steps:
+      - name: Configurar AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
+
+
+      - name: Obtener hostname del Load Balancer
+        id: get_elb
+        run: |
+          NAMESPACE=${{ needs.set_namespace.outputs.namespace }}
+          INGRESS_NAME="public-ingress-${{ needs.set_namespace.outputs.namespace }}"  
+          ELB_HOSTNAME=$(kubectl get ingress $INGRESS_NAME -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          echo "elb_hostname=$ELB_HOSTNAME" >> $GITHUB_OUTPUT
+
+      - name: Obtener Hosted Zone ID
+        id: get_zone
+        run: |
+            HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name antonellabrochini.com --query "HostedZones[0].Id" --output text)
+            HOSTED_ZONE_ID=${HOSTED_ZONE_ID##*/}
+            echo "hosted_zone_id=$HOSTED_ZONE_ID" >> $GITHUB_OUTPUT
+
+      - name: Actualizar DNS
+        run: |
+          HOSTED_ZONE_ID=${{ steps.get_zone.outputs.hosted_zone_id }}
+          DNS_NAME="${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com." 
+          ELB_HOSTNAME="${{ steps.get_elb.outputs.elb_hostname }}"
+
+          # Crear archivo JSON con cambio de registro DNS (tipo CNAME)
+          cat > change-batch.json <<EOF
+          {
+            "Comment": "Actualización automática DNS para ELB",
+            "Changes": [{
+              "Action": "UPSERT",
+              "ResourceRecordSet": {
+                "Name": "$DNS_NAME",
+                "Type": "CNAME",
+                "TTL": 300,
+                "ResourceRecords": [{"Value": "$ELB_HOSTNAME"}]
+              }
+            }]
+          }
+          EOF
+
+          aws route53 change-resource-record-sets --hosted-zone-id $HOSTED_ZONE_ID --change-batch file://change-batch.json
+
+
+          
