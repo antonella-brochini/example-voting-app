@@ -131,9 +131,9 @@ jobs:
           sed -i -E "s|image:.*|image: ${{ env.WORKER }}:${{ env.IMAGE_TAG }}|" k8s-specifications/worker-deployment.yaml
           sed -i -E "s|image:.*|image: ${{ env.VOTE }}:${{ env.IMAGE_TAG }}|" k8s-specifications/vote-deployment.yaml
           sed -i -E "s|image:.*|image: ${{ env.RESULT }}:${{ env.IMAGE_TAG }}|" k8s-specifications/result-deployment.yaml
-          sed -i "s/^\(\s*name:\).*/\1 public-ingress-${{ env.NAMESPACE }}|" k8s-specifications/ingress.yaml
-          sed -i "s/^\(\s*namespace:\).*/\1 ${{ env.NAMESPACE }}|" k8s-specifications/ingress.yaml
-          sed -i "s/^\(\s*host:\).*/\1 ${{ env.NAMESPACE }}.antonellabrochini.com|" k8s-specifications/ingress.yaml
+          sed -i -E "s|name:.*|name:  public-ingress-${{ env.NAMESPACE }}|" k8s-specifications/ingress.yaml
+          sed -i -E "s|namespace:.*|namespace: ${{ env.NAMESPACE }}|" k8s-specifications/ingress.yaml
+          sed -i -E "s|host:.*|host: ${{ env.NAMESPACE }}.antonellabrochini.com|" k8s-specifications/ingress.yaml
 
           
       - name: Deploy to namespace
