@@ -53,12 +53,13 @@ jobs:
       - name: Pull url of ecr from kubernet secret
         id: read_url
         run: |
-          ECR_URL=$(kubectl get secret ecr-url -n default -o jsonpath="{.data.ECR_REPO_URL}" | base64 --decode)
-          echo "ecr_url=$ECR_URL" >> $GITHUB_OUTPUT
+           ECR_URL_ENCODED=$(kubectl get secret ecr-url -n default -o jsonpath="{.data.ECR_REPO_URL}")
+           ECR_URL=$(echo "$ECR_URL_ENCODED" | base64 --decode | base64 --decode) 
+           echo "ecr_url=$ECR_URL" >> $GITHUB_OUTPUT
 
       - name: Login to ECR
         run: |
-          registry=$(echo "${{ steps.read_url.outputs.ecr_url }}" | cut -d'/' -f1)
+          registry=${{ steps.read_url.outputs.ecr_url }}
           aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $registry
 
       - name: Determine image tag
