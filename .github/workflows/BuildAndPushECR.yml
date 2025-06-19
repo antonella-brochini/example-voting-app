@@ -29,9 +29,7 @@ jobs:
     needs: set_namespace
     outputs:
       image_tag: ${{ steps.set_tag.outputs.image_tag }}
-      worker: ${{ steps.read_urls.outputs.worker }}
-      vote: ${{ steps.read_urls.outputs.vote }}
-      result: ${{ steps.read_urls.outputs.result }}
+      ecr_url: ${{ steps.read_url.outputs.ecr_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -47,33 +45,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Get latest successful run_id from Infra repo
+      - name: Update kubeconfig
         run: |
-          run_id=$(curl -s -H "Authorization: token ${{ secrets.INFRA_REPO_PAT }}" \
-            "https://api.github.com/repos/antonella-brochini/voting-app-infra/actions/workflows/deployEKS.yml/runs?status=success&branch=main&per_page=1" \
-            | jq -r '.workflow_runs[0].id')
-          echo "RUN_ID=$run_id" >> $GITHUB_ENV
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
 
-      - name: Download Artifact from Infra Repo
-        uses: actions/download-artifact@v4
-        with:
-          name: ecr-urls
-          path: ./ecr-urls
-          github-token: ${{ secrets.INFRA_REPO_PAT }}
-          repository: antonella-brochini/voting-app-infra
-          run-id: ${{ env.RUN_ID }}
 
-      - name: Read ECR URLs
-        id: read_urls
+      - name: Pull url of ecr from kubernet secret
+        id: read_url
         run: |
-          urls=($(cat ./ecr-urls/ecr_urls.txt))
-          echo "worker=${urls[0]}" >> $GITHUB_OUTPUT
-          echo "vote=${urls[1]}" >> $GITHUB_OUTPUT
-          echo "result=${urls[2]}" >> $GITHUB_OUTPUT
+          ECR_URL=$(kubectl get secret ecr-url -n default -o jsonpath="{.data.ECR_REPO_URL}" | base64 --decode)
+          echo "ecr_url=$ECR_URL" >> $GITHUB_OUTPUT
 
       - name: Login to ECR
         run: |
-          registry=$(echo "${{ steps.read_urls.outputs.worker }}" | cut -d'/' -f1)
+          registry=$(echo "${{ steps.read_url.outputs.ecr_url }}" | cut -d'/' -f1)
           aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $registry
 
       - name: Determine image tag
@@ -88,20 +73,20 @@ jobs:
       - name: Build, tag and push voting-worker image
         run: |
           docker build -t voting-worker ./worker
-          docker tag voting-worker:latest ${{ steps.read_urls.outputs.worker }}:${{ steps.set_tag.outputs.image_tag }}
-          docker push ${{ steps.read_urls.outputs.worker }}:${{ steps.set_tag.outputs.image_tag }}
+          docker tag voting-worker:latest ${{ steps.read_url.outputs.ecr_url }}:${{ steps.set_tag.outputs.image_tag }}
+          docker push ${{ steps.read_url.outputs.ecr_url }}:${{ steps.set_tag.outputs.image_tag }}
 
       - name: Build, tag and push voting-result image
         run: |
           docker build -t voting-result ./result
-          docker tag voting-result:latest ${{ steps.read_urls.outputs.result }}:${{ steps.set_tag.outputs.image_tag }}
-          docker push ${{ steps.read_urls.outputs.result }}:${{ steps.set_tag.outputs.image_tag }}
+          docker tag voting-result:latest ${{ steps.read_url.outputs.ecr_url }}:${{ steps.set_tag.outputs.image_tag }}
+          docker push ${{ steps.read_url.outputs.ecr_url }}:${{ steps.set_tag.outputs.image_tag }}
 
       - name: Build, tag and push voting-vote image
         run: |
           docker build -t voting-vote ./vote
-          docker tag voting-vote:latest ${{ steps.read_urls.outputs.vote }}:${{ steps.set_tag.outputs.image_tag }}
-          docker push  ${{ steps.read_urls.outputs.vote }}:${{ steps.set_tag.outputs.image_tag }}
+          docker tag voting-vote:latest ${{ steps.read_url.outputs.ecr_url }}:${{ steps.set_tag.outputs.image_tag }}
+          docker push  ${{ steps.read_url.outputs.ecr_url }}:${{ steps.set_tag.outputs.image_tag }}
 
   deploy:
     needs: [build_and_push, set_namespace ]
@@ -124,19 +109,17 @@ jobs:
 
       - name: Update images with new tag
         run: |
-          sed -i -E "s|image:.*|image: ${{ needs.build_and_push.outputs.worker }}:${{ needs.build_and_push.outputs.image_tag }}|" k8s-specifications/worker-deployment.yaml
-          sed -i -E "s|image:.*|image: ${{ needs.build_and_push.outputs.vote }}:${{ needs.build_and_push.outputs.image_tag }}|" k8s-specifications/vote-deployment.yaml
-          sed -i -E "s|image:.*|image: ${{ needs.build_and_push.outputs.result }}:${{ needs.build_and_push.outputs.image_tag }}|" k8s-specifications/result-deployment.yaml
+          sed -i -E "s|image:.*|image: ${{ needs.build_and_push.outputs.ecr_url }}:${{ needs.build_and_push.outputs.image_tag }}|" k8s-specifications/worker-deployment.yaml
+          sed -i -E "s|image:.*|image: ${{ needs.build_and_push.outputs.ecr_url }}:${{ needs.build_and_push.outputs.image_tag }}|" k8s-specifications/vote-deployment.yaml
+          sed -i -E "s|image:.*|image: ${{ needs.build_and_push.outputs.ecr_url }}:${{ needs.build_and_push.outputs.image_tag }}|" k8s-specifications/result-deployment.yaml
           sed -i -E "s|name:.*|name: public-ingress-${{ needs.set_namespace.outputs.namespace }}|" k8s-specifications/ingress.yaml
           sed -i -E "s|namespace:.*|namespace: ${{ needs.set_namespace.outputs.namespace }}|" k8s-specifications/ingress.yaml
           sed -i -E "s|host:.*|host: ${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com|" k8s-specifications/ingress.yaml
 
           
       - name: Deploy to namespace
-        env:
-           NAMESPACE: ${{ needs.set_namespace.outputs.namespace }}
         run: |
-          kubectl apply -f k8s-specifications/ --namespace=${{ env.NAMESPACE }}
+          kubectl apply -f k8s-specifications/ --namespace=${{ needs.set_namespace.outputs.namespace }}
 
   update-dns:
     runs-on: ubuntu-latest
@@ -162,7 +145,7 @@ jobs:
           MAX_WAIT=600  # 10 minutos en segundos
           echo "Esperando que el Load Balancer esté listo (hasta 10 minutos)..."
           until [ -n "$ELB_HOSTNAME" ] || [ $SECONDS_WAITED -ge $MAX_WAIT ]; do
-          ELB_HOSTNAME=$(kubectl get ingress public-ingress-prod -n prod -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          ELB_HOSTNAME=$(kubectl get ingress public-ingress-${{ needs.set_namespace.outputs.namespace }} -n ${{ needs.set_namespace.outputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
           if [ -z "$ELB_HOSTNAME" ]; then
           echo "Load Balancer aún no listo, esperando 10 segundos..."
           sleep 10
