@@ -7,7 +7,7 @@ var express = require('express'),
     io = require('socket.io')(server);
 
 const path = require('path');
-var port = process.env.PORT || 80;
+var port = process.env.PORT || 4000;
 
 
 io.on('connection', function (socket) {
