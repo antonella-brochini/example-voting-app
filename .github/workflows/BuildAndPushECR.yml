@@ -116,3 +116,82 @@ jobs:
       - name: Deploy to namespace
         run: |
           kubectl apply -f k8s-specifications/ --namespace=${{ needs.set_namespace.outputs.namespace }}
+
+  update-dns:
+    runs-on: ubuntu-latest
+    needs: [build_and_push, set_namespace , deploy]
+    steps:
+      - name: Configurar AWS CLI
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
+
+      - name: Esperar hostname del Load Balancer (máximo 10 minutos)
+        id: wait_for_elb
+        run: |
+          ELB_HOSTNAME=""
+          SECONDS_WAITED=0
+          MAX_WAIT=600  # 10 minutos en segundos
+          echo "Esperando que el Load Balancer esté listo (hasta 10 minutos)..."
+          until [ -n "$ELB_HOSTNAME" ] || [ $SECONDS_WAITED -ge $MAX_WAIT ]; do
+          ELB_HOSTNAME=$(kubectl get ingress public-ingress-${{ needs.set_namespace.outputs.namespace }} -n ${{ needs.set_namespace.outputs.namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          if [ -z "$ELB_HOSTNAME" ]; then
+          echo "Load Balancer aún no listo, esperando 10 segundos..."
+          sleep 10
+          SECONDS_WAITED=$((SECONDS_WAITED + 10))
+          fi
+          done
+ 
+          if [ -n "$ELB_HOSTNAME" ]; then
+          echo "Load Balancer listo: $ELB_HOSTNAME"
+          echo "elb_hostname=$ELB_HOSTNAME" >> $GITHUB_OUTPUT
+          else
+          echo "Error: Load Balancer no estuvo listo después de 10 minutos."
+          exit 1
+          fi
+
+
+      - name: Obtener Hosted Zone ID
+        id: get_zone
+        run: |
+          HOSTED_ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name antonellabrochini.com --query "HostedZones[0].Id" --output text)
+          HOSTED_ZONE_ID=${HOSTED_ZONE_ID##*/}
+          echo "hosted_zone_id=$HOSTED_ZONE_ID"
+          echo "hosted_zone_id=$HOSTED_ZONE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Actualizar DNS
+        run: |
+          HOSTED_ZONE_ID="${{ steps.get_zone.outputs.hosted_zone_id }}"
+          DNS_NAME="${{ needs.set_namespace.outputs.namespace }}.antonellabrochini.com." 
+          ELB_HOSTNAME="${{ steps.wait_for_elb.outputs.elb_hostname }}"
+          echo "Actualizando DNS: $DNS_NAME -> $ELB_HOSTNAME (Zone: $HOSTED_ZONE_ID)"
+
+          # Crear archivo JSON con cambio de registro DNS (tipo CNAME)
+          cat > change-batch.json <<EOF
+          {
+            "Comment": "Actualización automática DNS para ELB",
+            "Changes": [{
+              "Action": "UPSERT",
+              "ResourceRecordSet": {
+                "Name": "$DNS_NAME",
+                "Type": "CNAME",
+                "TTL": 300,
+                "ResourceRecords": [{"Value": "$ELB_HOSTNAME"}]
+               }
+            }]
+          }
+          EOF
+          aws route53 change-resource-record-sets --hosted-zone-id "$HOSTED_ZONE_ID" --change-batch file://change-batch.json
+
+          
+
+
+
+          
