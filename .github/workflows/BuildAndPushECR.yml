@@ -105,11 +105,14 @@ jobs:
           aws eks update-kubeconfig --region us-east-1 --name voting-cluster
 
       - name: Update images with new tag
-        run: |
-          sed -i -E "s|image:.*|image: ${{ steps.read_url.outputs.ecr_url }}:worker-${{ steps.set_tag.outputs.image_tag }}|" k8s-specifications/worker-deployment.yaml
-          sed -i -E "s|image:.*|image: ${{ steps.read_url.outputs.ecr_url }}:vote-${{ steps.set_tag.outputs.image_tag }}|" k8s-specifications/vote-deployment.yaml
-          sed -i -E "s|image:.*|image: ${{ steps.read_url.outputs.ecr_url }}:result-${{ steps.set_tag.outputs.image_tag }}|" k8s-specifications/result-deployment.yaml
-
+        env:
+         ECR_URL: ${{ steps.read_url.outputs.ecr_url }}
+         IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
+         run: |
+          sed -i -E "s|image:.*|image: ${ECR_URL}:worker-${IMAGE_TAG}|" k8s-specifications/worker-deployment.yaml
+          sed -i -E "s|image:.*|image: ${ECR_URL}:vote-${IMAGE_TAG}|" k8s-specifications/vote-deployment.yaml
+          sed -i -E "s|image:.*|image: ${ECR_URL}:result-${IMAGE_TAG}|" k8s-specifications/result-deployment.yaml
+      
       - name: Deploy to namespace
         run: |
           kubectl apply -f k8s-specifications/ --namespace=${{ needs.set_namespace.outputs.namespace }}
