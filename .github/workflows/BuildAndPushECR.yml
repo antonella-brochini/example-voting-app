@@ -108,7 +108,7 @@ jobs:
         env:
           ECR_URL: ${{ steps.read_url.outputs.ecr_url }}
           IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
-          run: |
+        run: |
             sed -i -E "s|image:.*|image: ${ECR_URL}:worker-${IMAGE_TAG}|" k8s-specifications/worker-deployment.yaml
             sed -i -E "s|image:.*|image: ${ECR_URL}:vote-${IMAGE_TAG}|" k8s-specifications/vote-deployment.yaml
             sed -i -E "s|image:.*|image: ${ECR_URL}:result-${IMAGE_TAG}|" k8s-specifications/result-deployment.yaml
