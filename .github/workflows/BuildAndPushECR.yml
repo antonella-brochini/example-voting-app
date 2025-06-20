@@ -2,7 +2,7 @@ name: Build and Push all images to ECR
 
 on:
   push:
-    branches: [main, test, developer]
+    branches: [main, test, develop]
 
 jobs:
   set_namespace:
@@ -17,7 +17,7 @@ jobs:
             echo "namespace=prod" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref_name }}" == "test" ]]; then
             echo "namespace=test" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "developer" ]]; then
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
             echo "namespace=dev" >> $GITHUB_OUTPUT
           fi
 
