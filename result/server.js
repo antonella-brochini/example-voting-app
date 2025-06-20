@@ -6,9 +6,9 @@ var express = require('express'),
     server = require('http').Server(app),
     io = require('socket.io')(server);
 
+const axios = require('axios');
 const path = require('path');
 var port = process.env.PORT || 80;
-
 
 io.on('connection', function (socket) {
 
@@ -77,3 +77,30 @@ server.listen(port, function () {
   var port = server.address().port;
   console.log('App running on port ' + port);
 });
+
+
+/////////////////////////////mi codigo/////////////////////////////
+
+setTimeout(async () => {
+  try {
+    // Obtener los votos desde la base de datos
+    const res = await pool.query('SELECT vote, COUNT(id) AS count FROM votes GROUP BY vote');
+    const votos = collectVotesFromResult(res);
+
+    // Llamar a la API Gateway con los votos
+    const url = 'https://yyje8drild.execute-api.us-east-1.amazonaws.com/prod/alerta'; // Tu endpoint
+    await axios.post(url, {
+      candidate: 'todos', // o null
+      votes: votos,
+      env: 'prod'
+    }, {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    console.log('📤 Backup de resultados enviado a Lambda');
+  } catch (err) {
+    console.error('❌ Error al enviar backup:', err.message);
+  }
+}, 10 * 60 * 1000); // 10 minutos
