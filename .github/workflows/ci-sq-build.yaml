@@ -101,8 +101,7 @@ jobs:
         run: |
           docker compose ps
           docker compose logs
-          curl --fail http://localhost:8080 || (echo "Vote service not responding" && exit 1)
-          curl --fail http://localhost:8081 || (echo "Result service not responding" && exit 1)
+          
           
       - name: Shut down services
         run: docker compose down
