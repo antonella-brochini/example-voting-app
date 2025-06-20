@@ -2,7 +2,7 @@ name: Build and Push all images to ECR
 
 on:
   push:
-    branches: [main, test, developer]
+    branches: [main, test, develop]
 
 jobs:
   set_namespace:
