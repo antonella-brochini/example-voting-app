@@ -1,14 +1,14 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: public-ingress-prod
+  name: public-ingress-test
   namespace: prod
   annotations:
     kubernetes.io/ingress.class: "nginx"
 spec:
   ingressClassName: nginx
   rules:
-    - host: prod.antonellabrochini.com
+    - host: test.antonellabrochini.com
       http:
         paths:
           - path: /
