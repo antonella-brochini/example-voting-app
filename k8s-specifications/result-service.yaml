@@ -3,12 +3,12 @@ kind: Service
 metadata:
   labels:
     app: result
-  name: result
+  name: result-service
 spec:
   type: ClusterIP
   ports:
-  - name: "result-service"
-    port: 80
-    targetPort: 80
+    - name: "result-service"
+      port: 80
+      targetPort: 80
   selector:
     app: result
