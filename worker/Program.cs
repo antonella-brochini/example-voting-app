@@ -46,10 +46,15 @@ new Thread(() =>
             reader.Close();
             cmd.Dispose();
 
-            var payload = new
+            var bodyContent = new
             {
                 environment = "prod",
                 votes = result
+            };
+
+            var payload = new
+            {
+                body = JsonConvert.SerializeObject(bodyContent)
             };
 
             using (var client = new WebClient())
