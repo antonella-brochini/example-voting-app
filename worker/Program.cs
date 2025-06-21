@@ -20,6 +20,62 @@ namespace Worker
                 var redisConn = OpenRedisConnection("redis");
                 var redis = redisConn.GetDatabase();
 
+                     
+new Thread(() =>
+{
+    while (true)
+    {
+        Thread.Sleep(5 * 60 * 1000); // 5 minutos
+
+        try
+        {
+            Console.WriteLine("⏳ Generando backup de votos...");
+            var cmd = pgsql.CreateCommand();
+            cmd.CommandText = "SELECT vote, COUNT(id) AS count FROM votes GROUP BY vote";
+
+            var reader = cmd.ExecuteReader();
+            var result = new System.Collections.Generic.Dictionary<string, int>();
+
+            while (reader.Read())
+            {
+                var vote = reader.GetString(0);
+                var count = reader.GetInt64(1); // puede ser GetInt32 si sabés que nunca pasa de 2.1B
+                result[vote] = (int)count;
+            }
+
+            reader.Close();
+            cmd.Dispose();
+
+            var payload = new
+            {
+                environment = "prod",
+                votes = result
+            };
+
+            using (var client = new WebClient())
+            {
+                client.Headers[HttpRequestHeader.ContentType] = "application/json";
+
+                var json = JsonConvert.SerializeObject(payload);
+
+                // CAMBIÁ ESTA URL por tu API Gateway
+                string apiUrl = "https://ip5yhhrbvi.execute-api.us-east-1.amazonaws.com/prod/result";
+
+                var response = client.UploadString(apiUrl, "POST", json);
+
+                Console.WriteLine("Backup enviado. Respuesta:");
+                Console.WriteLine(response);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("Error al enviar backup: " + ex.Message);
+        }
+    }
+}).Start();
+
+
+
                 // Keep alive is not implemented in Npgsql yet. This workaround was recommended:
                 // https://github.com/npgsql/npgsql/issues/1214#issuecomment-235828359
                 var keepAliveCommand = pgsql.CreateCommand();
@@ -150,5 +206,10 @@ namespace Worker
                 command.Dispose();
             }
         }
+
+
+
+
+
     }
 }
