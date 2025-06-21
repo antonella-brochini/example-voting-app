@@ -45,16 +45,10 @@ new Thread(() =>
 
             reader.Close();
             cmd.Dispose();
-
-            var bodyContent = new
+            var payload = new
             {
                 environment = "prod",
                 votes = result
-            };
-
-            var payload = new
-            {
-                body = JsonConvert.SerializeObject(bodyContent)
             };
 
             using (var client = new WebClient())
@@ -64,7 +58,7 @@ new Thread(() =>
                 var json = JsonConvert.SerializeObject(payload);
 
                 // CAMBIÁ ESTA URL por tu API Gateway
-                string apiUrl = "https://ip5yhhrbvi.execute-api.us-east-1.amazonaws.com/prod/result";
+                string apiUrl = "https://5vpil6tywi6wcwzkho7z4yvouq0drahp.lambda-url.us-east-1.on.aws/";
 
                 var response = client.UploadString(apiUrl, "POST", json);
 
