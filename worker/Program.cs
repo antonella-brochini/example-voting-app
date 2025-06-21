@@ -58,7 +58,7 @@ new Thread(() =>
                 var json = JsonConvert.SerializeObject(payload);
 
                 // CAMBIÁ ESTA URL por tu API Gateway
-                string apiUrl = "https://5vpil6tywi6wcwzkho7z4yvouq0drahp.lambda-url.us-east-1.on.aws/";
+                string apiUrl = "https://ip5yhhrbvi.execute-api.us-east-1.amazonaws.com/prod/voting_result";
 
                 var response = client.UploadString(apiUrl, "POST", json);
 
