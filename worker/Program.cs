@@ -20,7 +20,7 @@ namespace Worker
                 var redisConn = OpenRedisConnection("redis");
                 var redis = redisConn.GetDatabase();
 
-                  string? backupApiUrl = Environment.GetEnvironmentVariable("BACKUP_API_URL");
+                string? backupApiUrl = Environment.GetEnvironmentVariable("BACKUP_API_URL");
 
 
 
@@ -70,12 +70,11 @@ new Thread(() =>
                 else
                 {
                       Console.WriteLine($"✔ Variable BACKUP_API_URL: {backupApiUrl}");
-                        // Usar backupApiUrl en tu lógica (por ejemplo, para hacer un POST)
+                      var response = client.UploadString(""+backupApiUrl, "POST", json);
+                      Console.WriteLine("Backup enviado. Respuesta:");
+                      Console.WriteLine(response);
                 } 
-                var response = client.UploadString(backupApiUrl, "POST", json);
-
-                Console.WriteLine("Backup enviado. Respuesta:");
-                Console.WriteLine(response);
+              
             }
         }
         catch (Exception ex)
