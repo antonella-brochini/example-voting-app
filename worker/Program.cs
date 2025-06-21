@@ -20,7 +20,10 @@ namespace Worker
                 var redisConn = OpenRedisConnection("redis");
                 var redis = redisConn.GetDatabase();
 
-                     
+                  string? backupApiUrl = Environment.GetEnvironmentVariable("BACKUP_API_URL");
+
+
+
 new Thread(() =>
 {
     while (true)
@@ -56,11 +59,20 @@ new Thread(() =>
                 client.Headers[HttpRequestHeader.ContentType] = "application/json";
 
                 var json = JsonConvert.SerializeObject(payload);
-
+       
                 // CAMBIÁ ESTA URL por tu API Gateway
                 string apiUrl = "https://ip5yhhrbvi.execute-api.us-east-1.amazonaws.com/prod/voting_result";
-
-                var response = client.UploadString(apiUrl, "POST", json);
+                if (string.IsNullOrEmpty(backupApiUrl))
+                {
+                    Console.WriteLine("❌ ERROR: La variable BACKUP_API_URL no está definida.");
+  
+                }
+                else
+                {
+                      Console.WriteLine($"✔ Variable BACKUP_API_URL: {backupApiUrl}");
+                        // Usar backupApiUrl en tu lógica (por ejemplo, para hacer un POST)
+                } 
+                var response = client.UploadString(backupApiUrl, "POST", json);
 
                 Console.WriteLine("Backup enviado. Respuesta:");
                 Console.WriteLine(response);
