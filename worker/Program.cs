@@ -62,18 +62,13 @@ new Thread(() =>
        
                 // CAMBIÁ ESTA URL por tu API Gateway
                 string apiUrl = "https://ip5yhhrbvi.execute-api.us-east-1.amazonaws.com/prod/voting_result";
-                if (string.IsNullOrEmpty(backupApiUrl))
-                {
-                    Console.WriteLine("❌ ERROR: La variable BACKUP_API_URL no está definida.");
-  
-                }
-                else
-                {
-                      Console.WriteLine($"✔ Variable BACKUP_API_URL: {backupApiUrl}");
-                      var response = client.UploadString(""+backupApiUrl, "POST", json);
+              string backupApiUrlClean = backupApiUrl?.Trim();
+          
+                      Console.WriteLine($"✔ Variable BACKUP_API_URL: |{backupApiUrl}|");
+                      var response = client.UploadString(backupApiUrlClean, "POST", json);
                       Console.WriteLine("Backup enviado. Respuesta:");
                       Console.WriteLine(response);
-                } 
+                
               
             }
         }
