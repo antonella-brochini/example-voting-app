@@ -25,19 +25,15 @@ namespace Worker
 
                string secretPath = "/etc/secrets/BACKUP_API_URL";
                string backupApiUrl = "";
-
-                if (File.Exists(secretPath))
-                {
                   backupApiUrl = File.ReadAllText(secretPath).Trim();
                   Console.WriteLine($"✔ BACKUP_API_URL cargada desde secret: {backupApiUrl}");
-                }
-                else
-                {
-                    Console.Error.WriteLine("❌ No se encontró el archivo del secret BACKUP_API_URL.");
-                }
+                  byte[] data = Convert.FromBase64String(backupApiUrl);
+                  string decodedUrl = Encoding.UTF8.GetString(data);
+                  Console.WriteLine($"✔ BACKUP_API_URL decodificada: {decodedUrl}");
+               
 
                 // Lanzar el backup en tarea async en paralelo (no bloquea el bucle principal)
-                var backupTask = RunBackupWithDelayAsync(pgsql, backupApiUrl );
+                var backupTask = RunBackupWithDelayAsync(pgsql, decodedUrl );
 
                 var keepAliveCommand = pgsql.CreateCommand();
                 keepAliveCommand.CommandText = "SELECT 1";
