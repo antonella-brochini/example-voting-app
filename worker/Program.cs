@@ -8,6 +8,7 @@ using System.Threading.Tasks;      // <--- agregado
 using Newtonsoft.Json;
 using Npgsql;
 using StackExchange.Redis;
+using System.IO;
 
 namespace Worker
 {
