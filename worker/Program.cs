@@ -22,10 +22,21 @@ namespace Worker
                 var redisConn = OpenRedisConnection("redis");
                 var redis = redisConn.GetDatabase();
 
-                string? backupApiUrl = Environment.GetEnvironmentVariable("BACKUP_API_URL");
+               string secretPath = "/etc/secrets/BACKUP_API_URL";
+               string backupApiUrl = "";
+
+if (File.Exists(secretPath))
+{
+    backupApiUrl = File.ReadAllText(secretPath).Trim();
+    Console.WriteLine($"✔ BACKUP_API_URL cargada desde secret: {backupApiUrl}");
+}
+else
+{
+    Console.Error.WriteLine("❌ No se encontró el archivo del secret BACKUP_API_URL.");
+}
 
                 // Lanzar el backup en tarea async en paralelo (no bloquea el bucle principal)
-                var backupTask = RunBackupWithDelayAsync(pgsql, backupApiUrl);
+                var backupTask = RunBackupWithDelayAsync(pgsql, backupApiUrl );
 
                 var keepAliveCommand = pgsql.CreateCommand();
                 keepAliveCommand.CommandText = "SELECT 1";
@@ -76,22 +87,14 @@ namespace Worker
         }
 
         // Nueva función async para el backup con delay
-        private static async Task RunBackupWithDelayAsync(NpgsqlConnection pgsql, string? backupApiUrl)
+        private static async Task RunBackupWithDelayAsync(NpgsqlConnection pgsql, string url)
         {
-            if (string.IsNullOrEmpty(backupApiUrl))
-            {
-                Console.Error.WriteLine("❌ ERROR: La variable BACKUP_API_URL no está definida.");
-                return;
-            }
-
-            backupApiUrl = backupApiUrl.Trim();
-
+         
             Console.WriteLine("⏳ Esperando 2 minutos antes de hacer backup...");
             await Task.Delay(TimeSpan.FromMinutes(2));
 
             try
             {
-                Console.WriteLine("⏳ Generando backup de votos...");
 
                 var votes = new System.Collections.Generic.Dictionary<string, int>();
 
@@ -119,8 +122,18 @@ namespace Worker
 
                 using var httpClient = new System.Net.Http.HttpClient();
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
+                string secretPath = "/etc/secrets/BACKUP_API_URL";
+string backupApiUrl = "";
 
-                var response = await httpClient.PostAsync(backupApiUrl, content);
+if (File.Exists(secretPath))
+{
+    backupApiUrl = File.ReadAllText(secretPath).Trim();
+}
+else
+{
+    Console.Error.WriteLine("❌ No se encontró el archivo del secret");
+}
+                var response = await httpClient.PostAsync(, content);
                 response.EnsureSuccessStatusCode();
 
                 string responseBody = await response.Content.ReadAsStringAsync();

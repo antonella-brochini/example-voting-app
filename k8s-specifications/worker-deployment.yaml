@@ -17,6 +17,11 @@ spec:
       containers:
         - image: dockersamples/examplevotingapp_worker
           name: worker
-          env:
-            - name: BACKUP_API_URL
-              value: "https://ip5yhhrbvi.execute-api.us-east-1.amazonaws.com/prod/voting_resul"
+          volumeMounts:
+        - name: backup-api-secret-vol
+          mountPath: /etc/secrets
+          readOnly: true
+  volumes:
+    - name: backup-api-secret-vol
+      secret:
+        secretName: backup-api-secret
