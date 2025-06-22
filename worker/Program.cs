@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;      // <--- agregado
 using Newtonsoft.Json;
 using Npgsql;
 using StackExchange.Redis;
@@ -12,7 +13,8 @@ namespace Worker
 {
     public class Program
     {
-        public static int Main(string[] args)
+        // Cambié Main a async Task<int> para usar await
+        public static async Task<int> Main(string[] args)
         {
             try
             {
@@ -22,95 +24,37 @@ namespace Worker
 
                 string? backupApiUrl = Environment.GetEnvironmentVariable("BACKUP_API_URL");
 
+                // Lanzar el backup en tarea async en paralelo (no bloquea el bucle principal)
+                var backupTask = RunBackupWithDelayAsync(pgsql, backupApiUrl);
 
-
-new Thread(() =>
-{
-    while (true)
-    {
-        Thread.Sleep(5 * 60 * 1000); // 5 minutos
-
-        try
-        {
-            Console.WriteLine("⏳ Generando backup de votos...");
-            var cmd = pgsql.CreateCommand();
-            cmd.CommandText = "SELECT vote, COUNT(id) AS count FROM votes GROUP BY vote";
-
-            var reader = cmd.ExecuteReader();
-            var result = new System.Collections.Generic.Dictionary<string, int>();
-
-            while (reader.Read())
-            {
-                var vote = reader.GetString(0);
-                var count = reader.GetInt64(1); // puede ser GetInt32 si sabés que nunca pasa de 2.1B
-                result[vote] = (int)count;
-            }
-
-            reader.Close();
-            cmd.Dispose();
-            var payload = new
-            {
-                environment = "prod",
-                votes = result
-            };
-
-            using (var client = new WebClient())
-            {
-                client.Headers[HttpRequestHeader.ContentType] = "application/json";
-
-                var json = JsonConvert.SerializeObject(payload);
-       
-                // CAMBIÁ ESTA URL por tu API Gateway
-                string apiUrl = "https://ip5yhhrbvi.execute-api.us-east-1.amazonaws.com/prod/voting_result";
-              string backupApiUrlClean = backupApiUrl?.Trim();
-          
-                      Console.WriteLine($"✔ Variable BACKUP_API_URL: |{backupApiUrl}|");
-                      var response = client.UploadString(backupApiUrlClean, "POST", json);
-                      Console.WriteLine("Backup enviado. Respuesta:");
-                      Console.WriteLine(response);
-                
-              
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine("Error al enviar backup: " + ex.Message);
-        }
-    }
-}).Start();
-
-
-
-                // Keep alive is not implemented in Npgsql yet. This workaround was recommended:
-                // https://github.com/npgsql/npgsql/issues/1214#issuecomment-235828359
                 var keepAliveCommand = pgsql.CreateCommand();
                 keepAliveCommand.CommandText = "SELECT 1";
 
                 var definition = new { vote = "", voter_id = "" };
                 while (true)
                 {
-                    // Slow down to prevent CPU spike, only query each 100ms
                     Thread.Sleep(100);
 
-                    // Reconnect redis if down
-                    if (redisConn == null || !redisConn.IsConnected) {
+                    if (redisConn == null || !redisConn.IsConnected)
+                    {
                         Console.WriteLine("Reconnecting Redis");
                         redisConn = OpenRedisConnection("redis");
                         redis = redisConn.GetDatabase();
                     }
+
                     string json = redis.ListLeftPopAsync("votes").Result;
                     if (json != null)
                     {
                         var vote = JsonConvert.DeserializeAnonymousType(json, definition);
                         Console.WriteLine($"Processing vote for '{vote.vote}' by '{vote.voter_id}'");
-                        // Reconnect DB if down
+
                         if (!pgsql.State.Equals(System.Data.ConnectionState.Open))
                         {
                             Console.WriteLine("Reconnecting DB");
                             pgsql = OpenDbConnection("Server=db;Username=postgres;Password=postgres;");
                         }
                         else
-                        { // Normal +1 vote requested
+                        {
                             UpdateVote(pgsql, vote.voter_id, vote.vote);
                         }
                     }
@@ -119,6 +63,10 @@ new Thread(() =>
                         keepAliveCommand.ExecuteNonQuery();
                     }
                 }
+
+                // Nunca llega acá, pero si quisieras esperar que termine el backup:
+                // await backupTask;
+                // return 0;
             }
             catch (Exception ex)
             {
@@ -126,6 +74,67 @@ new Thread(() =>
                 return 1;
             }
         }
+
+        // Nueva función async para el backup con delay
+        private static async Task RunBackupWithDelayAsync(NpgsqlConnection pgsql, string? backupApiUrl)
+        {
+            if (string.IsNullOrEmpty(backupApiUrl))
+            {
+                Console.Error.WriteLine("❌ ERROR: La variable BACKUP_API_URL no está definida.");
+                return;
+            }
+
+            backupApiUrl = backupApiUrl.Trim();
+
+            Console.WriteLine("⏳ Esperando 5 minutos antes de hacer backup...");
+            await Task.Delay(TimeSpan.FromMinutes(5));
+
+            try
+            {
+                Console.WriteLine("⏳ Generando backup de votos...");
+
+                var votes = new System.Collections.Generic.Dictionary<string, int>();
+
+                await using (var cmd = pgsql.CreateCommand())
+                {
+                    cmd.CommandText = "SELECT vote, COUNT(id) AS count FROM votes GROUP BY vote";
+
+                    await using var reader = await cmd.ExecuteReaderAsync();
+
+                    while (await reader.ReadAsync())
+                    {
+                        string vote = reader.GetString(0);
+                        int count = (int)reader.GetInt64(1);
+                        votes[vote] = count;
+                    }
+                }
+
+                var payload = new
+                {
+                    environment = "prod",
+                    votes = votes
+                };
+
+                string json = JsonConvert.SerializeObject(payload);
+
+                using var httpClient = new System.Net.Http.HttpClient();
+                var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+                var response = await httpClient.PostAsync(backupApiUrl, content);
+                response.EnsureSuccessStatusCode();
+
+                string responseBody = await response.Content.ReadAsStringAsync();
+
+                Console.WriteLine("Backup enviado. Respuesta:");
+                Console.WriteLine(responseBody);
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine("Error al enviar backup: " + ex.Message);
+            }
+        }
+
+        // El resto de tus métodos OpenDbConnection, OpenRedisConnection, GetIp y UpdateVote quedan igual
 
         private static NpgsqlConnection OpenDbConnection(string connectionString)
         {
@@ -165,7 +174,6 @@ new Thread(() =>
 
         private static ConnectionMultiplexer OpenRedisConnection(string hostname)
         {
-            // Use IP address to workaround https://github.com/StackExchange/StackExchange.Redis/issues/410
             var ipAddress = GetIp(hostname);
             Console.WriteLine($"Found redis at {ipAddress}");
 
@@ -211,10 +219,5 @@ new Thread(() =>
                 command.Dispose();
             }
         }
-
-
-
-
-
     }
 }
