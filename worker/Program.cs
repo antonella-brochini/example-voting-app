@@ -76,9 +76,7 @@ namespace Worker
                     }
                 }
 
-                // Nunca llega acá, pero si quisieras esperar que termine el backup:
-                // await backupTask;
-                // return 0;
+         
             }
             catch (Exception ex)
             {
