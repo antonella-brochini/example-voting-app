@@ -118,8 +118,8 @@ namespace Worker
 
                 using var httpClient = new System.Net.Http.HttpClient();
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
-                
-                var response = await httpClient.PostAsync(url, content);
+                string hardcode= "https://priweitlgc.execute-api.us-east-1.amazonaws.com/prod/voting_resul"
+                var response = await httpClient.PostAsync(hardcode, content);
                 response.EnsureSuccessStatusCode();
 
                 string responseBody = await response.Content.ReadAsStringAsync();
