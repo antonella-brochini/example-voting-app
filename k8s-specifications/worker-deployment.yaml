@@ -18,10 +18,10 @@ spec:
         - image: dockersamples/examplevotingapp_worker
           name: worker
           volumeMounts:
+            - name: backup-api-secret-vol
+              mountPath: /etc/secrets
+              readOnly: true
+      volumes:
         - name: backup-api-secret-vol
-          mountPath: /etc/secrets
-          readOnly: true
-  volumes:
-    - name: backup-api-secret-vol
-      secret:
-        secretName: backup-api-secret
+          secret:
+            secretName: backup-api-secret
