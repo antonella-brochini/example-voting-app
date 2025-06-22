@@ -26,15 +26,15 @@ namespace Worker
                string secretPath = "/etc/secrets/BACKUP_API_URL";
                string backupApiUrl = "";
 
-if (File.Exists(secretPath))
-{
-    backupApiUrl = File.ReadAllText(secretPath).Trim();
-    Console.WriteLine($"✔ BACKUP_API_URL cargada desde secret: {backupApiUrl}");
-}
-else
-{
-    Console.Error.WriteLine("❌ No se encontró el archivo del secret BACKUP_API_URL.");
-}
+                if (File.Exists(secretPath))
+                {
+                  backupApiUrl = File.ReadAllText(secretPath).Trim();
+                  Console.WriteLine($"✔ BACKUP_API_URL cargada desde secret: {backupApiUrl}");
+                }
+                else
+                {
+                    Console.Error.WriteLine("❌ No se encontró el archivo del secret BACKUP_API_URL.");
+                }
 
                 // Lanzar el backup en tarea async en paralelo (no bloquea el bucle principal)
                 var backupTask = RunBackupWithDelayAsync(pgsql, backupApiUrl );
