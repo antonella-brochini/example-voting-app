@@ -86,8 +86,8 @@ namespace Worker
 
             backupApiUrl = backupApiUrl.Trim();
 
-            Console.WriteLine("⏳ Esperando 5 minutos antes de hacer backup...");
-            await Task.Delay(TimeSpan.FromMinutes(5));
+            Console.WriteLine("⏳ Esperando 2 minutos antes de hacer backup...");
+            await Task.Delay(TimeSpan.FromMinutes(2));
 
             try
             {
