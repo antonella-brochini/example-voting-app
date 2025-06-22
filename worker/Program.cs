@@ -121,18 +121,8 @@ namespace Worker
 
                 using var httpClient = new System.Net.Http.HttpClient();
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
-                string secretPath = "/etc/secrets/BACKUP_API_URL";
-                string backupApiUrl = "";
-
-                if (File.Exists(secretPath))
-                {
-                     backupApiUrl = File.ReadAllText(secretPath).Trim();
-                }
-                else
-                {
-                      Console.Error.WriteLine("❌ No se encontró el archivo del secret");
-                }
-                var response = await httpClient.PostAsync(backupApiUrl, content);
+                
+                var response = await httpClient.PostAsync(url, content);
                 response.EnsureSuccessStatusCode();
 
                 string responseBody = await response.Content.ReadAsStringAsync();
