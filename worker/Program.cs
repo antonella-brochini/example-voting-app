@@ -9,6 +9,7 @@ using Newtonsoft.Json;
 using Npgsql;
 using StackExchange.Redis;
 using System.IO;
+using System.Text;
 
 namespace Worker
 {
