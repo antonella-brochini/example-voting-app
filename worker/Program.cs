@@ -133,7 +133,7 @@ else
 {
     Console.Error.WriteLine("❌ No se encontró el archivo del secret");
 }
-                var response = await httpClient.PostAsync(, content);
+                var response = await httpClient.PostAsync(backupApiUrl, content);
                 response.EnsureSuccessStatusCode();
 
                 string responseBody = await response.Content.ReadAsStringAsync();
