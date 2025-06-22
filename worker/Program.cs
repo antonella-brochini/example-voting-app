@@ -31,7 +31,7 @@ namespace Worker
                   Console.WriteLine($"✔ BACKUP_API_URL cargada desde secret: {backupApiUrl}");
                   byte[] data = Convert.FromBase64String(backupApiUrl);
                   string decodedUrl = Encoding.UTF8.GetString(data);
-                  Console.WriteLine($"✔ BACKUP_API_URL decodificada: {decodedUrl}");
+                  Console.WriteLine($"✔ BACKUP_API_URL decodificada: |{decodedUrl}|");
                
 
                 // Lanzar el backup en tarea async en paralelo (no bloquea el bucle principal)
@@ -122,7 +122,7 @@ namespace Worker
 
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
                 string hardcode = "https://priweitlgc.execute-api.us-east-1.amazonaws.com/prod/voting_result";
-                var response = await httpClient.PostAsync(hardcode, content);
+                var response = await httpClient.PostAsync(url, content);
                 response.EnsureSuccessStatusCode();
 
                 string responseBody = await response.Content.ReadAsStringAsync();
