@@ -114,6 +114,7 @@ namespace Worker
                     votes = votes
                 };
 
+
                 string json = JsonConvert.SerializeObject(payload);
 
                 using var httpClient = new System.Net.Http.HttpClient();
