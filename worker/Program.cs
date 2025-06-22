@@ -10,6 +10,7 @@ using Npgsql;
 using StackExchange.Redis;
 using System.IO;
 using System.Text;
+using System.Net.Http;
 
 namespace Worker
 {
