@@ -1,0 +1,13 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-load-test
+  namespace: test
+spec:
+  template:
+    spec:
+      containers:
+      - name: k6
+        image: tu-usuario/k6-test
+      restartPolicy: Never
+  backoffLimit: 0
