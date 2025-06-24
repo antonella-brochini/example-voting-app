@@ -27,11 +27,10 @@ namespace Worker
 
                string secretPath = "/etc/secrets/BACKUP_API_URL";
                string backupApiUrl = "";
-                  backupApiUrl = File.ReadAllText(secretPath).Trim();
-                  Console.WriteLine($"✔ BACKUP_API_URL cargada desde secret: {backupApiUrl}");
-                  byte[] data = Convert.FromBase64String(backupApiUrl);
-                  string decodedUrl = Encoding.UTF8.GetString(data);
-                  Console.WriteLine($"✔ BACKUP_API_URL decodificada: |{decodedUrl}|");
+               backupApiUrl = File.ReadAllText(secretPath).Trim();
+               byte[] data = Convert.FromBase64String(backupApiUrl);
+               string decodedUrl = Encoding.UTF8.GetString(data);
+               Console.WriteLine($"✔ BACKUP_API_URL decodificada: |{decodedUrl}|");
                
 
                 // Lanzar el backup en tarea async en paralelo (no bloquea el bucle principal)
@@ -86,15 +85,10 @@ namespace Worker
         // Nueva función async para el backup con delay
         private static async Task RunBackupWithDelayAsync(NpgsqlConnection pgsql, string url)
         {
-         
-            Console.WriteLine("⏳ Esperando 2 minutos antes de hacer backup...");
             await Task.Delay(TimeSpan.FromMinutes(2));
-
             try
             {
-
                 var votes = new System.Collections.Generic.Dictionary<string, int>();
-
                 await using (var cmd = pgsql.CreateCommand())
                 {
                     cmd.CommandText = "SELECT vote, COUNT(id) AS count FROM votes GROUP BY vote";
@@ -115,10 +109,11 @@ namespace Worker
                     votes = votes
                 };
 
-
                 string json = JsonConvert.SerializeObject(payload);
-
                 HttpClient httpClient = new System.Net.Http.HttpClient();
+
+                // Agregar header Authorization con el token
+                httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "SECRETO123");
 
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
                 var response = await httpClient.PostAsync(url, content);
