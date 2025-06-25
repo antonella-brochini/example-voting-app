@@ -32,9 +32,12 @@ namespace Worker
                string decodedUrl = Encoding.UTF8.GetString(data);
                Console.WriteLine($"✔ BACKUP_API_URL decodificada: |{decodedUrl}|");
                
-
+               const tokenApi = process.env.AUTH_TOKEN_API;
+               byte[] dataTokenApi = Convert.FromBase64String(tokenApi);
+               string decodedToken = Encoding.UTF8.GetString(dataTokenApi);
+               Console.WriteLine($"✔ TOKEN API decodificada: {decodedToken}");
                 // Lanzar el backup en tarea async en paralelo (no bloquea el bucle principal)
-                var backupTask = RunBackupWithDelayAsync(pgsql, decodedUrl );
+                var backupTask = RunBackupWithDelayAsync(pgsql, decodedUrl , decodedToken);
 
                 var keepAliveCommand = pgsql.CreateCommand();
                 keepAliveCommand.CommandText = "SELECT 1";
@@ -83,7 +86,7 @@ namespace Worker
         }
 
         // Nueva función async para el backup con delay
-        private static async Task RunBackupWithDelayAsync(NpgsqlConnection pgsql, string url)
+        private static async Task RunBackupWithDelayAsync(NpgsqlConnection pgsql, string url, string token)
         {
             await Task.Delay(TimeSpan.FromMinutes(2));
             try
@@ -111,9 +114,12 @@ namespace Worker
 
                 string json = JsonConvert.SerializeObject(payload);
                 HttpClient httpClient = new System.Net.Http.HttpClient();
-
+ 
+                string[] partes = token.Split(' ');
+                string palabra1 = partes[0];
+                string palabra2 = partes[1];
                 // Agregar header Authorization con el token
-                httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", "SECRETO123");
+                httpClient.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(palabra1, palabra2);
 
                 var content = new System.Net.Http.StringContent(json, System.Text.Encoding.UTF8, "application/json");
                 var response = await httpClient.PostAsync(url, content);
