@@ -10,16 +10,20 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       namespace: ${{ steps.setenv.outputs.namespace }}
+      cluster: ${{ steps.setenv.outputs.cluster }}
     steps:
       - name: Set environment namespace
         id: setenv
         run: |
           if [[ "${{ github.ref_name }}" == "main" ]]; then
             echo "namespace=prod" >> $GITHUB_OUTPUT
+            echo "cluster=prod" >> $GITHUB_OUTPU
           elif [[ "${{ github.ref_name }}" == "test" ]]; then
             echo "namespace=test" >> $GITHUB_OUTPUT
+            echo "cluster=dev" >> $GITHUB_OUTPU
           elif [[ "${{ github.ref_name }}" == "develop" ]]; then
             echo "namespace=dev" >> $GITHUB_OUTPUT
+            echo "cluster=dev" >> $GITHUB_OUTPU
           fi
 
   build_and_push:
@@ -45,8 +49,8 @@ jobs:
 
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
-
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster-${{ needs.set_namespace.outputs.cluster }}
+          
       - name: Pull url of ecr from kubernet secret
         id: read_url
         run: |
@@ -103,7 +107,7 @@ jobs:
 
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster-${{ needs.set_namespace.outputs.cluster }}
 
       - name: Update images with new tag
         env:
@@ -132,7 +136,7 @@ jobs:
 
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --region us-east-1 --name voting-cluster
+          aws eks update-kubeconfig --region us-east-1 --name voting-cluster-${{ needs.set_namespace.outputs.cluster }}
 
       - name: Esperar hostname del Load Balancer (máximo 10 minutos)
         id: wait_for_elb
