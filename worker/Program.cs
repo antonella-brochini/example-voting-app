@@ -32,7 +32,7 @@ namespace Worker
                string decodedUrl = Encoding.UTF8.GetString(data);
                Console.WriteLine($"✔ BACKUP_API_URL decodificada: |{decodedUrl}|");
                
-               const tokenApi = process.env.AUTH_TOKEN_API;
+               string tokenApi = Environment.GetEnvironmentVariable("AUTH_TOKEN_API");
                byte[] dataTokenApi = Convert.FromBase64String(tokenApi);
                string decodedToken = Encoding.UTF8.GetString(dataTokenApi);
                Console.WriteLine($"✔ TOKEN API decodificada: {decodedToken}");
