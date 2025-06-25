@@ -17,13 +17,13 @@ jobs:
         run: |
           if [[ "${{ github.ref_name }}" == "main" ]]; then
             echo "namespace=prod" >> $GITHUB_OUTPUT
-            echo "cluster=prod" >> $GITHUB_OUTPU
+            echo "cluster=prod" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref_name }}" == "test" ]]; then
             echo "namespace=test" >> $GITHUB_OUTPUT
-            echo "cluster=dev" >> $GITHUB_OUTPU
+            echo "cluster=dev" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref_name }}" == "develop" ]]; then
             echo "namespace=dev" >> $GITHUB_OUTPUT
-            echo "cluster=dev" >> $GITHUB_OUTPU
+            echo "cluster=dev" >> $GITHUB_OUTPUT
           fi
 
   build_and_push:
