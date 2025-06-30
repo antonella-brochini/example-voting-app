@@ -14,6 +14,7 @@ This solution uses Python, Node.js, .NET, with Redis for messaging and Postgres 
 
 Run in this directory to build and run the app:
 
+
 ```shell
 docker compose up
 ```
