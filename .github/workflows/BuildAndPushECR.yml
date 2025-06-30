@@ -74,7 +74,7 @@ jobs:
         run: docker build -t worker-service ./worker
 
   test-compose:
-    name: Test Docker Compose and seed data
+    name: Test Docker Compose and seed data dev
     runs-on: ubuntu-latest
     needs: build
 
@@ -119,16 +119,9 @@ jobs:
       - name: Set environment namespace
         id: setenv
         run: |
-          if [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "namespace=prod" >> $GITHUB_OUTPUT
-             echo "cluster=prod" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "test" ]]; then
-            echo "namespace=test" >> $GITHUB_OUTPUT
-             echo "cluster=dev" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
             echo "namespace=dev" >> $GITHUB_OUTPUT
-             echo "cluster=dev" >> $GITHUB_OUTPUT
-          fi
+            echo "cluster=dev" >> $GITHUB_OUTPUT
+          
 
   build_and_push:
     runs-on: ubuntu-latest
