@@ -14,7 +14,7 @@ jobs:
 
       - name: Build K6 Docker image
         run: |
-          docker build -t k6-test-image ./testk6
+          docker build -t k6-test-image ./testK6
 
       - name: Run K6 tests in container
         run: |
