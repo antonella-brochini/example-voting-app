@@ -2,8 +2,11 @@ name: Build and Push all images to ECR
 
 on:
   push:
-    branches: [main, test, develop]
-  workflow_dispatch:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   set_namespace:
