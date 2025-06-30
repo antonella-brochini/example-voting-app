@@ -1,4 +1,4 @@
-name: Build and Push all images to ECR
+name: Build, Push ECR and deploy + k6 - test
 
 on:
   push:
