@@ -9,6 +9,7 @@ Download [Docker Desktop](https://www.docker.com/products/docker-desktop) for Ma
 This solution uses Python, Node.js, .NET, with Redis for messaging and Postgres for storage.
 
 
+
 Run in this directory to build and run the app:
 
 
